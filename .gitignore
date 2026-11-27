@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+coverage/
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+backups/
+src/generated/
+public/sw.js
+next-env.d.ts
+*.tsbuildinfo
+.vercel
+.DS_Store

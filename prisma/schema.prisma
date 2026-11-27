@@ -1,0 +1,617 @@
+// Esquema multi-tenant. Toda tabla de negocio lleva tenantId y tiene RLS (ver migración *_rls).
+// Las relaciones entre tablas de negocio usan claves compuestas (tenantId, id) para que la base
+// de datos impida referenciar filas de otro negocio.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum Role {
+  SUPERADMIN
+  ADMIN
+  SUPERVISOR
+  SELLER
+}
+
+enum MovementType {
+  PURCHASE
+  INITIAL
+  SALE
+  SALE_VOID
+  RETURN
+  ADJUSTMENT
+  COUNT
+  WASTE
+  TRANSFER_OUT
+  TRANSFER_IN
+}
+
+enum TransferStatus {
+  REQUESTED
+  APPROVED
+  SHIPPED
+  RECEIVED
+  REJECTED
+  CANCELLED
+}
+
+enum AdjustmentKind {
+  ADJUSTMENT
+  WASTE
+  COUNT
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PaymentMethod {
+  CASH
+  YAPE
+  PLIN
+  CARD
+  TRANSFER
+  VOUCHER
+}
+
+// ───────────────────────── Plataforma ─────────────────────────
+
+model Tenant {
+  id             String       @id @default(uuid())
+  name           String
+  businessType   String
+  status         TenantStatus @default(ACTIVE)
+  /// Feature flags y límites. Solo el SuperAdmin puede escribirlos (RLS).
+  features       Json
+  aiUsageResetAt DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  suspendedAt    DateTime?
+  deletedAt      DateTime?
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  tenantId           String?
+  email              String   @unique
+  name               String
+  passwordHash       String
+  role               Role
+  /// Permisos adicionales concedidos a este usuario (principalmente vendedores).
+  extraPermissions   String[] @default([])
+  active             Boolean  @default(true)
+  mustChangePassword Boolean  @default(true)
+  createdAt          DateTime @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  tenantId  String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tenantId])
+}
+
+model LoginAttempt {
+  id        BigInt   @id @default(autoincrement())
+  key       String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  tenantId   String?
+  actorId    String?
+  actorEmail String
+  action     String
+  entity     String
+  entityId   String?
+  data       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([createdAt])
+}
+
+model TenantBackup {
+  id        String   @id @default(uuid())
+  tenantId  String
+  createdBy String
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+model AiModelPrice {
+  model         String   @id
+  inputPerMTok  Decimal  @db.Decimal(12, 4)
+  outputPerMTok Decimal  @db.Decimal(12, 4)
+  updatedAt     DateTime @updatedAt
+}
+
+model AiUsage {
+  id           String   @id @default(uuid())
+  tenantId     String
+  userId       String
+  model        String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  costUsd      Decimal  @default(0) @db.Decimal(14, 8)
+  question     String
+  /// RESERVED (en curso, cuenta contra el límite) | OK | ERROR | BLOCKED
+  status       String
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+}
+
+// ───────────────────────── Negocio ─────────────────────────
+
+model TenantSettings {
+  tenantId             String  @id
+  currency             String  @default("PEN")
+  legalName            String  @default("")
+  taxId                String  @default("")
+  ticketFooter         String  @default("¡Gracias por su compra!")
+  expiryDaysAhead      Int     @default(30)
+  alertExpiredEnabled  Boolean @default(true)
+  alertExpiringEnabled Boolean @default(true)
+  alertLowStockEnabled Boolean @default(true)
+  maxSellerDiscountPct Decimal @default(10) @db.Decimal(5, 2)
+  labelFormat          Json
+}
+
+model Counter {
+  tenantId String
+  key      String
+  value    Int    @default(0)
+
+  @@id([tenantId, key])
+}
+
+model Branch {
+  id       String  @id @default(uuid())
+  tenantId String
+  code     String
+  name     String
+  address  String  @default("")
+  active   Boolean @default(true)
+
+  users UserBranch[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, code])
+}
+
+model UserBranch {
+  tenantId String
+  userId   String
+  branchId String
+
+  branch Branch @relation(fields: [tenantId, branchId], references: [tenantId, id], onDelete: Cascade)
+
+  @@id([tenantId, userId, branchId])
+}
+
+model Category {
+  id           String  @id @default(uuid())
+  tenantId     String
+  name         String
+  tracksExpiry Boolean @default(false)
+  /// Definición de atributos: [{key,label,type,options,required,perVariant}]
+  attributes   Json
+
+  products Product[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, name])
+}
+
+model Product {
+  id           String   @id @default(uuid())
+  tenantId     String
+  categoryId   String
+  name         String
+  brand        String   @default("")
+  description  String   @default("")
+  tracksExpiry Boolean  @default(false)
+  attributes   Json
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  category Category  @relation(fields: [tenantId, categoryId], references: [tenantId, id])
+  variants Variant[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, categoryId])
+}
+
+model Variant {
+  id         String  @id @default(uuid())
+  tenantId   String
+  productId  String
+  sku        String
+  barcode    String
+  attributes Json
+  price      Decimal @db.Decimal(12, 2)
+  cost       Decimal @default(0) @db.Decimal(12, 2)
+  minStock   Decimal @default(0) @db.Decimal(12, 3)
+  active     Boolean @default(true)
+
+  product Product @relation(fields: [tenantId, productId], references: [tenantId, id])
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, sku])
+  @@unique([tenantId, barcode])
+  @@index([tenantId, productId])
+}
+
+model PriceHistory {
+  id        BigInt   @id @default(autoincrement())
+  tenantId  String
+  variantId String
+  price     Decimal  @db.Decimal(12, 2)
+  changedBy String
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, variantId, createdAt])
+}
+
+model Lot {
+  id        String    @id @default(uuid())
+  tenantId  String
+  variantId String
+  code      String
+  expiresAt DateTime? @db.Date
+  createdAt DateTime  @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, variantId, code])
+}
+
+/// Kárdex: libro de movimientos inmutable. Es la fuente de verdad del stock.
+model StockMovement {
+  id          String       @id @default(uuid())
+  tenantId    String
+  branchId    String
+  variantId   String
+  lotId       String?
+  type        MovementType
+  quantity    Decimal      @db.Decimal(12, 3)
+  unitCost    Decimal      @default(0) @db.Decimal(12, 2)
+  reason      String       @default("")
+  userId      String
+  refType     String       @default("")
+  refId       String       @default("")
+  occurredAt  DateTime
+  createdAt   DateTime     @default(now())
+
+  @@index([tenantId, branchId, variantId, occurredAt])
+  @@index([tenantId, occurredAt])
+}
+
+/// Saldo materializado, mantenido por un trigger sobre StockMovement. lotKey = lotId o "".
+model StockBalance {
+  tenantId  String
+  branchId  String
+  variantId String
+  lotKey    String  @default("")
+  quantity  Decimal @db.Decimal(14, 3)
+
+  @@id([tenantId, branchId, variantId, lotKey])
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  docNumber String   @default("")
+  phone     String   @default("")
+  email     String   @default("")
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, id])
+}
+
+/// Un navegador/dispositivo en una sucursal. Su serie evita choques de numeración sin conexión.
+model Device {
+  id           String    @id @default(uuid())
+  tenantId     String
+  deviceKey    String
+  branchId     String
+  name         String
+  series       String
+  pendingCount Int       @default(0)
+  lastSyncAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@unique([tenantId, deviceKey, branchId])
+  @@unique([tenantId, series])
+}
+
+/// Registro de idempotencia: cada operación enviada por un dispositivo se aplica una sola vez.
+model SyncOperation {
+  tenantId    String
+  id          String
+  userId      String
+  deviceKey   String
+  type        String
+  payloadHash String
+  /// APPLIED | REJECTED
+  status      String
+  error       String?
+  result      Json?
+  clientTime  DateTime
+  createdAt   DateTime @default(now())
+
+  @@id([tenantId, id])
+  @@index([tenantId, createdAt])
+}
+
+model CashSession {
+  id            String    @id @default(uuid())
+  tenantId      String
+  branchId      String
+  userId        String
+  deviceKey     String
+  openedAt      DateTime
+  openingAmount Decimal   @db.Decimal(12, 2)
+  closedAt      DateTime?
+  expected      Json?
+  counted       Json?
+  difference    Decimal?  @db.Decimal(12, 2)
+  notes         String    @default("")
+  reviewedBy    String?
+  reviewedAt    DateTime?
+
+  @@unique([tenantId, id])
+  @@index([tenantId, branchId, openedAt])
+}
+
+model CashMovement {
+  id            String   @id @default(uuid())
+  tenantId      String
+  cashSessionId String
+  /// IN | OUT
+  type          String
+  amount        Decimal  @db.Decimal(12, 2)
+  reason        String
+  userId        String
+  occurredAt    DateTime
+
+  @@index([tenantId, cashSessionId])
+}
+
+model Sale {
+  id            String    @id @default(uuid())
+  tenantId      String
+  branchId      String
+  deviceKey     String
+  series        String
+  number        Int
+  userId        String
+  customerId    String?
+  cashSessionId String?
+  subtotal      Decimal   @db.Decimal(12, 2)
+  discount      Decimal   @db.Decimal(12, 2)
+  total         Decimal   @db.Decimal(12, 2)
+  /// COMPLETED | VOIDED
+  status        String    @default("COMPLETED")
+  voidReason    String?
+  voidedBy      String?
+  voidedAt      DateTime?
+  occurredAt    DateTime
+  createdAt     DateTime  @default(now())
+
+  items    SaleItem[]
+  payments Payment[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, series, number])
+  @@index([tenantId, branchId, occurredAt])
+}
+
+model SaleItem {
+  id          String  @id @default(uuid())
+  tenantId    String
+  saleId      String
+  variantId   String
+  description String
+  quantity    Decimal @db.Decimal(12, 3)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  discount    Decimal @db.Decimal(12, 2)
+  total       Decimal @db.Decimal(12, 2)
+  unitCost    Decimal @db.Decimal(12, 2)
+  returnedQty Decimal @default(0) @db.Decimal(12, 3)
+
+  sale Sale @relation(fields: [tenantId, saleId], references: [tenantId, id])
+
+  @@unique([tenantId, id])
+  @@index([tenantId, saleId])
+  @@index([tenantId, variantId])
+}
+
+/// Cobros (positivos) y reembolsos (negativos).
+model Payment {
+  id            String        @id @default(uuid())
+  tenantId      String
+  saleId        String
+  method        PaymentMethod
+  amount        Decimal       @db.Decimal(12, 2)
+  reference     String        @default("")
+  cashSessionId String?
+  occurredAt    DateTime
+
+  sale Sale @relation(fields: [tenantId, saleId], references: [tenantId, id])
+
+  @@index([tenantId, cashSessionId])
+  @@index([tenantId, saleId])
+}
+
+model SaleReturn {
+  id           String        @id @default(uuid())
+  tenantId     String
+  saleId       String
+  branchId     String
+  userId       String
+  total        Decimal       @db.Decimal(12, 2)
+  refundMethod PaymentMethod
+  reason       String
+  items        Json
+  occurredAt   DateTime
+
+  @@index([tenantId, saleId])
+}
+
+model Voucher {
+  id        String   @id @default(uuid())
+  tenantId  String
+  code      String
+  amount    Decimal  @db.Decimal(12, 2)
+  balance   Decimal  @db.Decimal(12, 2)
+  returnId  String
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, code])
+}
+
+model Transfer {
+  id           String         @id @default(uuid())
+  tenantId     String
+  fromBranchId String
+  toBranchId   String
+  status       TransferStatus @default(REQUESTED)
+  notes        String         @default("")
+  requestedBy  String
+  requestedAt  DateTime
+  approvedBy   String?
+  approvedAt   DateTime?
+  shippedBy    String?
+  shippedAt    DateTime?
+  receivedBy   String?
+  receivedAt   DateTime?
+
+  items TransferItem[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+model TransferItem {
+  id         String  @id @default(uuid())
+  tenantId   String
+  transferId String
+  variantId  String
+  requested  Decimal @db.Decimal(12, 3)
+  /// Detalle por lote de lo enviado: [{lotId, quantity}]
+  shippedLots Json?
+  shipped    Decimal @default(0) @db.Decimal(12, 3)
+  received   Decimal @default(0) @db.Decimal(12, 3)
+
+  transfer Transfer @relation(fields: [tenantId, transferId], references: [tenantId, id])
+
+  @@unique([tenantId, transferId, variantId])
+}
+
+/// Ajustes, mermas y conteos físicos: requieren aprobación del supervisor.
+model Adjustment {
+  id          String         @id @default(uuid())
+  tenantId    String
+  branchId    String
+  kind        AdjustmentKind
+  status      ReviewStatus   @default(PENDING)
+  reason      String
+  /// [{variantId, lotId, delta, expectedQty?, countedQty?}]
+  items       Json
+  requestedBy String
+  requestedAt DateTime
+  reviewedBy  String?
+  reviewedAt  DateTime?
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// Documento de compra (boleta/factura del proveedor). Evita ingresar dos veces el mismo.
+model PurchaseDocument {
+  id          String   @id @default(uuid())
+  tenantId    String
+  branchId    String
+  supplierRuc String
+  docType     String
+  series      String
+  number      String
+  total       Decimal  @db.Decimal(12, 2)
+  igv         Decimal  @default(0) @db.Decimal(12, 2)
+  issueDate   String   @default("")
+  userId      String
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, supplierRuc, docType, series, number])
+}
+
+model SupervisorNotice {
+  id         String    @id @default(uuid())
+  tenantId   String
+  branchId   String?
+  /// NEGATIVE_STOCK | PRICE_REVIEW | SYNC_REJECTED | TRANSFER_DIFFERENCE | CASH_REVIEW
+  type       String
+  message    String
+  data       Json?
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+  resolvedBy String?
+
+  @@index([tenantId, resolvedAt])
+}
+
+// ───────────── Facturación electrónica SUNAT (adicional, preparada) ─────────────
+
+model SunatConfig {
+  tenantId        String   @id
+  ruc             String
+  solUser         String
+  /// Cifrados con AES-256-GCM (DATA_ENCRYPTION_KEY)
+  solPasswordEnc  String
+  certificateEnc  String
+  certPasswordEnc String
+  environment     String   @default("BETA")
+  updatedAt       DateTime @updatedAt
+}
+
+model ElectronicDocument {
+  id        String   @id @default(uuid())
+  tenantId  String
+  saleId    String
+  docType   String
+  /// QUEUED | SENT | ACCEPTED | REJECTED
+  status    String   @default("QUEUED")
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, saleId])
+}
