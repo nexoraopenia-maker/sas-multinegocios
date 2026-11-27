@@ -112,12 +112,13 @@ Ventas por periodo, sucursal, vendedor y producto; valorización de inventario; 
 | Aplicar migraciones | `npm run db:migrate` |
 | Contraseña del rol `saas_app` | `npm run db:role` |
 | Crear SuperAdmin | `npm run superadmin:create` |
+| Cuenta demo con productos de ejemplo | `npm run db:seed:demo` |
 | Nueva migración (desarrollo) | `npm run db:migrate:dev -- --name <nombre>` |
 
 ### Estructura
 ```
 prisma/            schema.prisma y migraciones (la de RLS contiene políticas, grants y trigger de stock)
-scripts/           rol de BD, SuperAdmin, service worker, íconos
+scripts/           rol de BD, SuperAdmin, cuenta demo, service worker, íconos
 src/shared/        reglas usadas por cliente y servidor: operaciones, permisos, stock/FEFO, alertas, totales
 src/server/        db (contexto RLS), auth, platform (SuperAdmin)
   domain/          sync (motor de operaciones), ventas, inventario, traslados, caja, catálogo, importación, consultas

@@ -87,3 +87,11 @@ Fecha de construcción: 2026-11-26. Las fases se ejecutaron seguidas; aquí se r
 
 - El QR peruano trae RUC, tipo, serie, número, IGV, total y fecha, **no el detalle**: precarga el documento y evita ingresarlo dos veces.
 - SUNAT queda **preparada, no implementada**: activación por cuenta, configuración y certificado cifrados (AES-256-GCM), cola `ElectronicDocument` e interfaz `InvoiceProvider`. Falta generar el XML UBL, firmarlo, enviarlo a SUNAT/OSE, notas de crédito y reintentos.
+
+## Cuenta de demostración (2026-11-27)
+
+- `scripts/seed-demo.ts` (`npm run db:seed:demo`) usa `createAccount`, `saveProductTx` y `processOperation`: mismas validaciones, rol `saas_app` y RLS. Sin cambios de esquema ni de autenticación.
+- Idempotente: los productos se reconocen por su SKU `DEMO-…`; no actualiza lo existente. Solo opera sobre el negocio llamado «Tienda Demo» cuyo administrador tiene el correo indicado.
+- Sin contraseña por defecto: se toma `DEMO_ADMIN_PASSWORD` o se genera una al azar; el cambio al primer ingreso es obligatorio. Exige un SuperAdmin que ya haya cambiado la suya (queda como autor en la auditoría).
+- No crea ventas ni abre caja. Las fechas de vencimiento son relativas al día de creación: con el tiempo, los productos «por vencer» pasan a vencidos.
+

@@ -15,6 +15,16 @@ npm run superadmin:create         # usa SUPERADMIN_EMAIL / SUPERADMIN_PASSWORD
 npm run dev                       # http://localhost:3000
 ```
 
+### Cuenta de demostración
+
+Después de que el SuperAdmin haya ingresado una vez y cambiado su contraseña:
+
+```bash
+npm run db:seed:demo              # lee .env.local
+```
+
+Crea «Tienda Demo» con productos, stock, lotes y casos de alerta. Muestra el usuario y, solo al crearla, la contraseña temporal. Se puede repetir sin duplicar datos. Escribe en la base de `DATABASE_URL`: revisa el host que imprime.
+
 El modo sin conexión (service worker) solo se activa en producción: `npm run build && npm start`.
 
 ## Documentación
