@@ -1,12 +1,14 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useStore } from '@/client/store';
-import { buildItems } from '@/client/ui/products';
+import { Dashboard } from '@/client/ui/Dashboard';
 import { Empty, Page } from '@/client/ui/kit';
+import { buildItems } from '@/client/ui/products';
 import { computeAlerts } from '@/shared/alerts';
 import { alertSwitches } from '@/shared/snapshot';
 
 type Tab = 'expired' | 'expiring' | 'lowStock';
+const INVENTORY_FILTER: Record<Tab, string> = { expired: 'expired', expiring: 'expiring', lowStock: 'low' };
 
 export default function Home() {
   const { view, user, branchId, can } = useStore();
@@ -14,6 +16,7 @@ export default function Home() {
   const [tab, setTab] = useState<Tab | null>(null);
   const s = view!;
   const switches = alertSwitches(user.features, s.settings);
+  const canTransfer = user.features.multiBranch && can('transfer.request') && s.branches.length > 1;
 
   // Las alertas se calculan en el dispositivo, también sin conexión.
   const alerts = useMemo(() => computeAlerts({
@@ -36,7 +39,11 @@ export default function Home() {
     )}>
       <div className="row">
         {can('pos.sell') && <a className="btn primary big" href="/app/pos">🛒 Nueva venta</a>}
+        {can('cash.operate') && !s.cashSession && <a className="btn big" href="/app/caja?abrir=1">💵 Abrir caja</a>}
         {can('stock.in') && <a className="btn big" href="/app/ingreso">📥 Ingresar mercadería</a>}
+        {can('stock.in') && user.features.aiAgent && <a className="btn big" href="/app/ingreso?ia=1">🤖 Escanear comprobante</a>}
+        {visible.some((c) => c.key === 'lowStock') && <a className="btn big" href="/app/inventario?f=low">📉 Reposición</a>}
+        {can('reports.view') && <a className="btn big" href="/app/reportes">📊 Reportes</a>}
         {!!s.openNotices && <a className="btn big" href="/app/avisos">🔔 {s.openNotices} avisos para revisar</a>}
       </div>
       <div className="cards">
@@ -48,19 +55,28 @@ export default function Home() {
       </div>
       {!visible.length && <Empty>No hay alertas activadas para tu cuenta.</Empty>}
       {tab && (
-        <div className="table-wrap">
-          {tab === 'lowStock' ? (
-            <table><thead><tr><th>Producto</th><th>Sucursal</th><th className="num">Stock</th><th className="num">Mínimo</th></tr></thead>
-              <tbody>{alerts.lowStock.map((a) => <tr key={a.variantId + a.branchId}><td><a href={`/app/kardex?v=${a.variantId}`}>{a.label}</a><small>{a.sku}</small></td><td>{branch(a.branchId)}</td><td className="num">{a.quantity}</td><td className="num">{a.minStock}</td></tr>)}</tbody>
-            </table>
-          ) : (
-            <table><thead><tr><th>Producto</th><th>Lote</th><th>Vence</th><th>Sucursal</th><th className="num">Cantidad</th></tr></thead>
-              <tbody>{alerts[tab].map((a) => <tr key={a.branchId + a.variantId + a.lotCode}><td><a href={`/app/kardex?v=${a.variantId}`}>{a.label}</a><small>{a.sku}</small></td><td>{a.lotCode}</td><td>{a.expiresAt}</td><td>{branch(a.branchId)}</td><td className="num">{a.quantity}</td></tr>)}</tbody>
-            </table>
-          )}
-          {!alerts[tab].length && <Empty>Sin productos en esta alerta.</Empty>}
-        </div>
+        <>
+          <div className="row"><a className="btn" href={`/app/inventario?f=${INVENTORY_FILTER[tab]}`}>Ver en inventario (sucursal activa)</a></div>
+          <div className="table-wrap">
+            {tab === 'lowStock' ? (
+              <table><thead><tr><th>Producto</th><th>Sucursal</th><th className="num">Stock</th><th className="num">Mínimo</th><th>Reponer</th></tr></thead>
+                <tbody>{alerts.lowStock.map((a) => <tr key={a.variantId + a.branchId}><td><a href={`/app/kardex?v=${a.variantId}`}>{a.label}</a><small>{a.sku}</small></td><td>{branch(a.branchId)}</td><td className="num">{a.quantity}</td><td className="num">{a.minStock}</td>
+                  {/* Reponer actúa sobre la sucursal activa. */}
+                  <td>{a.branchId !== branchId ? <small>Cambia de sucursal</small> : <span className="row">
+                    {can('stock.in') && <a className="btn" href={`/app/ingreso?v=${a.variantId}`}>Ingresar</a>}
+                    {canTransfer && <a className="btn" href={`/app/traslados?v=${a.variantId}`}>Pedir traslado</a>}
+                  </span>}</td></tr>)}</tbody>
+              </table>
+            ) : (
+              <table><thead><tr><th>Producto</th><th>Lote</th><th>Vence</th><th>Sucursal</th><th className="num">Cantidad</th></tr></thead>
+                <tbody>{alerts[tab].map((a) => <tr key={a.branchId + a.variantId + a.lotCode}><td><a href={`/app/kardex?v=${a.variantId}`}>{a.label}</a><small>{a.sku}</small></td><td>{a.lotCode}</td><td>{a.expiresAt}</td><td>{branch(a.branchId)}</td><td className="num">{a.quantity}</td></tr>)}</tbody>
+              </table>
+            )}
+            {!alerts[tab].length && <Empty>Sin productos en esta alerta.</Empty>}
+          </div>
+        </>
       )}
+      {can('reports.view') && <Dashboard allBranches={all} />}
     </Page>
   );
 }

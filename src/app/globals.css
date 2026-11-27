@@ -60,7 +60,8 @@ code { font-size: .75rem; word-break: break-all; }
 .stat.static { cursor: default; } .stat strong { font-size: 2rem; line-height: 1.1; }
 .stat.danger { border-left-color: var(--danger); } .stat.warn { border-left-color: var(--warn); } .stat.info { border-left-color: var(--info); }
 .stat[aria-pressed=true] { background: var(--soft); }
-.tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .5rem; }
+.tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .5rem; align-items: center; }
+.card.dim { opacity: .65; }
 .center { min-height: 100dvh; display: grid; place-items: center; padding: 1rem; }
 
 /* Estructura */
@@ -105,6 +106,18 @@ input.qty { width: 100px; flex: none; text-align: right; }
 .bubble { white-space: pre-wrap; padding: .7rem .9rem; border-radius: var(--radius); max-width: 90%; }
 .bubble.user { align-self: flex-end; background: var(--brand); color: var(--brand-ink); } .bubble.agent { background: var(--card); border: 1px solid var(--line); }
 .bubble.error { background: var(--danger-soft); color: var(--danger); }
+
+/* Panel principal: indicadores y gráfico de una sola serie */
+.kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: .9rem 1rem; }
+.kpi span { display: block; font-size: .85rem; color: var(--muted); } .kpi strong { display: block; font-size: 1.6rem; line-height: 1.25; }
+.chart { position: relative; }
+.chart-readout { min-height: 1.5em; font-variant-numeric: tabular-nums; }
+.bars { display: flex; align-items: flex-end; gap: 2px; height: 160px; border-bottom: 1px solid var(--line); }
+.bars button { flex: 1; min-width: 0; height: 100%; display: flex; align-items: flex-end; justify-content: center; padding: 0; border: 0; background: none; cursor: pointer; }
+.bars button:hover, .bars button:focus-visible { background: var(--soft); }
+.bars i { display: block; width: 100%; max-width: 24px; background: var(--brand); border-radius: 4px 4px 0 0; }
+.chart-axis { display: flex; justify-content: space-between; font-size: .75rem; color: var(--muted); }
+.meter { display: block; height: 8px; border-radius: 0 4px 4px 0; background: var(--brand); min-width: 2px; }
 
 /* Comprobantes y etiquetas */
 .receipt { background: #fff; color: #000; border: 1px solid var(--line); border-radius: 8px; padding: .75rem; margin: 0 auto; width: 100%; }

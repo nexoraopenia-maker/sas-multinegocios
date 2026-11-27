@@ -1,6 +1,6 @@
 # SaaS multinegocio de inventario y ventas
 
-PWA para tiendas físicas (joyerías, ropa, zapatillas, tiendas mixtas): inventario con kárdex, punto de venta que funciona sin internet, multisucursal, alertas, panel SuperAdmin y asistente de IA de solo lectura.
+PWA para tiendas físicas (joyerías, ropa, zapatillas, tiendas mixtas): inventario con kárdex, punto de venta que funciona sin internet, multisucursal, alertas, panel SuperAdmin, escaneo de comprobantes con IA y asistente de IA de solo lectura.
 
 ## Inicio rápido (desarrollo)
 

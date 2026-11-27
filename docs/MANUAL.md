@@ -57,6 +57,15 @@ Todo lo anterior, además:
 - **Ingreso con QR:** en *Ingreso*, escanea el QR de la factura o boleta del proveedor. Se llenan RUC, número y total, y se impide registrarla dos veces. Los productos se agregan a mano o escaneando (el QR no trae el detalle).
 - **Panel de inicio:** tarjetas de vencidos, por vencer y bajo stock; toca una para ver el listado.
 - **Asistente IA** (si está activado): pregunta en lenguaje natural; solo consulta. Cada pregunta se responde por separado. Al agotar el límite se bloquea y aparece un aviso.
+- **Panel de inicio** (con permiso de reportes): ventas de hoy y del periodo (7, 30 o 90 días), margen e inventario aproximados (con permiso de costos), ventas por día, ingresos recientes y movimientos. Necesita conexión; las alertas funcionan sin ella.
+- **Escanear comprobante** (Ingreso → *Escanear con IA*; requiere el agente activado, permiso de ingreso e internet):
+  1. Toma una foto o sube un JPG, PNG, WEBP o PDF (máximo 4 MB y 10 páginas).
+  2. Revisa el borrador: datos del comprobante, producto de cada línea (los marcados «Sugerido» se deben verificar), cantidad, costo, lote y vencimiento. Puedes crear productos nuevos (con permiso de catálogo) u omitir líneas.
+  3. Revisa si los costos incluyen IGV y pulsa *Confirmar ingreso*. Recién entonces cambia el inventario.
+  4. Genera las etiquetas desde el aviso de confirmación.
+  - Un comprobante ya ingresado (mismo RUC, tipo, serie y número) o un archivo ya usado se bloquea. El archivo original queda guardado como respaldo.
+  - Cada lectura consume del mismo límite de IA que el asistente.
+- **Accesos rápidos:** abrir caja desde Vender, montos rápidos de apertura, crear sucursal desde Traslados, filtros de stock en Inventario y botones de reposición en las alertas.
 - **SUNAT** (si está activado): puedes guardar el certificado; **la emisión electrónica aún no está disponible**. Los comprobantes que imprime el sistema son internos, sin valor tributario.
 
 ## SuperAdmin (dueño del sistema)

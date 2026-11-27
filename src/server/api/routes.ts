@@ -1,16 +1,20 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { operationSchema } from '@/shared/operations';
+import { MAX_SCAN_BYTES } from '@/shared/purchase';
 import { REPORTS, type ReportType } from '@/shared/reports';
 import { askAgent } from '../ai/agent';
+import { scanPurchase } from '../ai/purchase-scan';
 import { changePassword, login, logout, SESSION_COOKIE, toSessionUser } from '../auth';
 import { withTenant } from '../db';
 import { AppError, notFound } from '../errors';
 import * as admin from '../domain/admin';
 import { categoryInput, productInput, saveCategory, saveProduct } from '../domain/catalog';
 import { importProducts, importTemplate } from '../domain/import';
+import { checkPurchase, purchaseFile } from '../domain/purchases';
 import * as q from '../domain/queries';
 import { processOperation, registerDevice, type OpResult } from '../domain/sync';
+import { dashboard } from '../reports/dashboard';
 import { toPdf, toXlsx } from '../reports/export';
 import { buildReport } from '../reports/reports';
 import { body, clientIp, type Route } from './http';
@@ -83,6 +87,25 @@ export const routes: Route[] = [
   } },
   { method: 'GET', path: 'inventory/kardex', handler: async ({ ctx, query }) => q.kardex(ctx, range.parse(query)) },
 
+  // ── Comprobantes de compra ──
+  { method: 'POST', path: 'purchases/scan', handler: async ({ req, ctx }) => {
+    const tooBig = new AppError('El archivo debe pesar como máximo 4 MB', 413, 'FILE_TOO_LARGE');
+    if (Number(req.headers.get('content-length') ?? 0) > MAX_SCAN_BYTES + 100_000) throw tooBig;
+    const form = await req.formData().catch(() => { throw new AppError('Adjunta un archivo'); });
+    const upload = form.get('file');
+    if (!(upload instanceof File)) throw new AppError('Adjunta un archivo JPG, PNG, WEBP o PDF');
+    if (upload.size > MAX_SCAN_BYTES) throw tooBig;
+    return scanPurchase(ctx, { branchId: String(form.get('branchId') ?? ''), data: Buffer.from(await upload.arrayBuffer()), fileName: upload.name });
+  } },
+  { method: 'GET', path: 'purchases/check', handler: async ({ ctx, query }) => {
+    const text = z.string().max(20).default('');
+    return checkPurchase(ctx, z.object({ supplierRuc: text, docType: text, series: text, number: text }).parse(query));
+  } },
+  { method: 'GET', path: 'purchases/:id/file', handler: async ({ ctx, params }) => {
+    const f = await purchaseFile(ctx, params.id);
+    return file(f.data, f.mimeType, encodeURIComponent(f.fileName));
+  } },
+
   // ── Ventas y caja ──
   { method: 'GET', path: 'sales', handler: async ({ ctx, query }) => q.listSales(ctx, range.parse(query)) },
   { method: 'GET', path: 'sales/:id', handler: async ({ ctx, params }) => q.saleDetail(ctx, params.id) },
@@ -103,6 +126,8 @@ export const routes: Route[] = [
   { method: 'POST', path: 'sunat', handler: async ({ req, ctx }) => admin.saveSunat(ctx, await body(req, admin.sunatInput)) },
 
   // ── Reportes y agente ──
+  { method: 'GET', path: 'dashboard', handler: async ({ ctx, query }) =>
+    dashboard(ctx, z.object({ branchId: z.string().optional(), days: z.coerce.number().int().optional() }).parse(query)) },
   { method: 'GET', path: 'reports/:type', handler: async ({ ctx, params, query }) => {
     if (!(params.type in REPORTS)) throw notFound('Reporte');
     const report = await buildReport(ctx, params.type as ReportType, range.parse(query));

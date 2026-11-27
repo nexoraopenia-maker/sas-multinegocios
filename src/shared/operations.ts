@@ -32,6 +32,8 @@ export const payloads = {
   }),
   'stock.in': z.object({
     branchId: ref, reason: text.default('Ingreso de mercadería'), initial: z.boolean().default(false),
+    /** Comprobante escaneado que respalda el ingreso. */
+    scanId: ref.nullish(),
     document: z.object({ supplierRuc: z.string().regex(/^\d{11}$/), docType: z.string().max(2), series: z.string().max(10), number: z.string().max(12), total: amount, igv: amount.default(0), issueDate: z.string().max(10).default('') }).nullish(),
     items: z.array(z.object({ variantId: ref, quantity: qty, unitCost: amount.nullish(), lotCode: z.string().trim().max(60).nullish(), expiresAt: z.string().date().nullish() })).min(1).max(500),
   }),

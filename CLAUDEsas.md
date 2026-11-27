@@ -123,7 +123,7 @@ src/shared/        reglas usadas por cliente y servidor: operaciones, permisos, 
 src/server/        db (contexto RLS), auth, platform (SuperAdmin)
   domain/          sync (motor de operaciones), ventas, inventario, traslados, caja, catálogo, importación, consultas
   api/             tabla de rutas y control de acceso (una sola ruta: app/api/[...path])
-  ai/ reports/ sunat/
+  ai/ reports/ sunat/   (ai: asistente de stock con Claude y escaneo de comprobantes con OpenAI)
 src/client/        IndexedDB, sincronización, estado local y componentes
 src/app/           app/ (PWA del negocio, estática) · super/ (SuperAdmin) · login
 src/sw/sw.js       plantilla del service worker (public/sw.js se genera)

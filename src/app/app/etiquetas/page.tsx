@@ -5,6 +5,7 @@ import { useStore } from '@/client/store';
 import { Field, Page, useQueryParam } from '@/client/ui/kit';
 import { ProductPicker, useItems, type Item } from '@/client/ui/products';
 import { isEan13 } from '@/shared/codes';
+import { parseLabelsParam } from '@/shared/labels';
 import { money } from '@/shared/money';
 import type { LabelFormat } from '@/shared/snapshot';
 
@@ -21,11 +22,13 @@ function Code({ value, symbol }: { value: string; symbol: LabelFormat['symbol'] 
 
 export default function Labels() {
   const productId = useQueryParam('p');
+  const preset = useQueryParam('v');
   const { view } = useStore();
   const { items, byId } = useItems();
   const [chosen, setChosen] = useState<Record<string, number> | null>(null);
   const [format, setFormat] = useState<LabelFormat>(view!.settings.labelFormat);
-  const copies = chosen ?? Object.fromEntries(items.filter((i) => i.product.id === productId).map((i) => [i.variant.id, 1]));
+  const copies: Record<string, number> = chosen ?? (preset ? parseLabelsParam(preset)
+    : Object.fromEntries(items.filter((i) => i.product.id === productId).map((i) => [i.variant.id, 1])));
   const add = (i: Item) => setChosen({ ...copies, [i.variant.id]: (copies[i.variant.id] ?? 0) + 1 });
   const labels = Object.entries(copies).flatMap(([id, count]) => {
     const item = byId.get(id);

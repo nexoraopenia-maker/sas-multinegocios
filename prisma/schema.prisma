@@ -574,6 +574,32 @@ model PurchaseDocument {
   @@unique([tenantId, supplierRuc, docType, series, number])
 }
 
+/// Archivo de un comprobante escaneado (respaldo) y borrador extraído por la IA.
+model PurchaseScan {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  branchId           String
+  userId             String
+  fileName           String
+  mimeType           String
+  size               Int
+  /// Huella del archivo: evita pagar y registrar dos veces el mismo.
+  sha256             String
+  data               Bytes
+  model              String
+  draft              Json
+  /// DRAFT | CONFIRMED
+  status             String    @default("DRAFT")
+  /// Operación stock.in que lo registró (refId en el kárdex).
+  operationId        String?
+  purchaseDocumentId String?
+  createdAt          DateTime  @default(now())
+  confirmedAt        DateTime?
+
+  @@unique([tenantId, sha256])
+  @@index([tenantId, createdAt])
+}
+
 model SupervisorNotice {
   id         String    @id @default(uuid())
   tenantId   String

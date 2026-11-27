@@ -94,7 +94,12 @@ export default function Pos() {
 
   return (
     <Page title="Vender" actions={<span className="muted">Serie {device.series}</span>}>
-      {!s.cashSession && <p className="msg info">La caja está cerrada. <a href="/app/caja">Abre la caja</a> para vender.</p>}
+      {!s.cashSession && (
+        <div className="msg info row between">
+          <span>La caja está cerrada. {can('cash.operate') ? 'Ábrela para vender.' : 'Pide que la abran para vender.'}</span>
+          {can('cash.operate') && <a className="btn primary" href="/app/caja?abrir=1">💵 Abrir caja</a>}
+        </div>
+      )}
       <div className="pos">
         <section className="stack">
           <ProductPicker onPick={add} autoFocus />

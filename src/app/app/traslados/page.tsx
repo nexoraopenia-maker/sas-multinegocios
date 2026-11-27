@@ -1,7 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '@/client/store';
-import { Empty, Field, Notice, Page, useAction, when } from '@/client/ui/kit';
+import { Empty, Field, Notice, Page, useAction, useQueryParam, when } from '@/client/ui/kit';
 import { ProductPicker, stockOf, useItems } from '@/client/ui/products';
 import type { TransferDto } from '@/shared/snapshot';
 
@@ -20,6 +20,8 @@ export default function Transfers() {
   const [notes, setNotes] = useState('');
   const { busy, message, run } = useAction();
   const source = from || others[0]?.id || '';
+  const variantParam = useQueryParam('v');
+  useEffect(() => { if (variantParam && byId.has(variantParam)) setLines((old) => ({ [variantParam]: '1', ...old })); }, [variantParam, byId.size]); // eslint-disable-line react-hooks/exhaustive-deps
   const name = (id: string) => s.branches.find((b) => b.id === id)?.name ?? '';
 
   if (!user.features.multiBranch) return <Page title="Traslados"><Empty>La función multisucursal no está habilitada.</Empty></Page>;
@@ -46,7 +48,12 @@ export default function Transfers() {
             })}>Solicitar traslado</button></>}
         </section>
       )}
-      {others.length === 0 && <p className="msg info">Se necesitan al menos dos sucursales.</p>}
+      {others.length === 0 && (
+        <div className="msg info row between">
+          <span>Se necesitan al menos dos sucursales.{user.features.maxBranches < 2 && ' Tu cuenta permite una sola: pide al proveedor que amplíe el límite.'}</span>
+          {can('branches.manage') && user.features.maxBranches > 1 && <a className="btn primary" href="/app/config?tab=branches&nueva=1">+ Crear sucursal</a>}
+        </div>
+      )}
       <h2>Traslados</h2>
       {s.transfers.map((t) => <TransferCard key={`${t.id}-${t.status}`} t={t} />)}
       {!s.transfers.length && <Empty>Aún no hay traslados.</Empty>}

@@ -95,3 +95,14 @@ Fecha de construcción: 2026-11-26. Las fases se ejecutaron seguidas; aquí se r
 - Sin contraseña por defecto: se toma `DEMO_ADMIN_PASSWORD` o se genera una al azar; el cambio al primer ingreso es obligatorio. Exige un SuperAdmin que ya haya cambiado la suya (queda como autor en la auditoría).
 - No crea ventas ni abre caja. Las fechas de vencimiento son relativas al día de creación: con el tiempo, los productos «por vencer» pasan a vencidos.
 
+## Escaneo de comprobantes, panel ERP y accesos rápidos (2026-11-27)
+
+- **Dos proveedores de IA:** el escaneo usa OpenAI (pedido del usuario) con el SDK oficial `openai`, única dependencia nueva; el asistente de stock sigue con Claude. Cada uno toma `AI_MODEL` solo si es de su proveedor; `OPENAI_MODEL` permite tener ambos. No se fija un modelo de OpenAI por defecto ni se siembra su precio.
+- **Mismo control de consumo:** activación `aiAgent`, límite por cuenta con reserva previa, sin reintentos ni cambio de modelo, tope de 90 000 tokens de entrada y 12 000 de salida. Se pide `store: false`. El conteo previo usa el endpoint de tokens de OpenAI.
+- **La IA solo propone:** devuelve un borrador con esquema estricto, sin herramientas. El emparejamiento con el catálogo se hace en el dispositivo (el catálogo no se envía a OpenAI): código exacto o parecido de nombre; ante empate no elige.
+- **Confirmación:** es la operación `stock.in` de siempre, con `scanId`; marca el respaldo en la misma transacción que el kárdex. Los productos nuevos se crean justo antes con la API de catálogo (no es atómico con el ingreso: si este falla, quedan creados y la línea apunta a ellos).
+- **Esquema:** nueva tabla `PurchaseScan` (migración `20261128000000_purchase_scan`), con RLS; la aplicación no puede borrarla ni cambiar el archivo. El respaldo se guarda en la base (máximo 4 MB por archivo, límite de Vercel): vigilar el tamaño en Neon; si crece, pasar a almacenamiento de objetos. Los borradores no confirmados también se conservan.
+- **Duplicados:** por huella del archivo (reutiliza el borrador sin volver a consumir) y por RUC, tipo, serie y número, normalizados igual que el QR de SUNAT. Sin comprobante solo protege la huella.
+- **Panel:** `GET /api/dashboard` con permiso `reports.view`; importes de costo solo con `cost.view`. Ventas netas como en Reportes. Margen y valorización usan costo registrado. Gráfico propio en CSS, sin librerías.
+- Las pruebas borran las variables de IA para no depender de `.env.local`.
+

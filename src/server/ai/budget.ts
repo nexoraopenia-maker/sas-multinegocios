@@ -36,7 +36,7 @@ export const LIMIT_MESSAGE = 'Se alcanzó el límite de consumo del agente de IA
  * Reserva el costo máximo de una llamada ANTES de hacerla. La suma y la reserva ocurren bajo un
  * bloqueo por negocio, de modo que consultas simultáneas no pueden superar el límite.
  */
-export async function reserve(input: { tenantId: string; userId: string; model: string; question: string; price: Price; inputTokens: number; maxOutput: number }) {
+export async function reserve(input: { tenantId: string; userId: string; model: string; question: string; price: Price; inputTokens: number; maxOutput: number; minOutput?: number }) {
   // Estado actual (el SuperAdmin pudo cambiar el límite o apagar el módulo).
   const tenant = await withPlatform((tx) => tx.tenant.findUniqueOrThrow({ where: { id: input.tenantId } }));
   const features = parseFeatures(tenant.features);
@@ -45,7 +45,7 @@ export async function reserve(input: { tenantId: string; userId: string; model: 
     await lock(tx, `ai:${input.tenantId}`);
     const sum = await tx.aiUsage.aggregate({ where: { tenantId: input.tenantId, createdAt: { gte: tenant.aiUsageResetAt } }, _sum: { costUsd: true, inputTokens: true, outputTokens: true } });
     const spent = { usd: Number(sum._sum.costUsd ?? 0), tokens: (sum._sum.inputTokens ?? 0) + (sum._sum.outputTokens ?? 0) };
-    const maxTokens = affordableOutput(features, spent, input.price, input.inputTokens, input.maxOutput);
+    const maxTokens = affordableOutput(features, spent, input.price, input.inputTokens, input.maxOutput, input.minOutput);
     if (!maxTokens) return null;
     const row = await tx.aiUsage.create({
       data: {

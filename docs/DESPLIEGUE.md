@@ -30,8 +30,12 @@ Borra `SUPERADMIN_PASSWORD` de `.env.local` al terminar. Crea el rol `saas_app` 
 | Variable | Obligatoria | Uso |
 |---|---|---|
 | `DATABASE_URL` | Sí | Conexión de la app (rol `saas_app`, con pooler) |
-| `ANTHROPIC_API_KEY` | Solo agente IA | Clave de la API de Claude |
-| `AI_MODEL` | No | Modelo del agente (por defecto `claude-haiku-5-5`) |
+| `ANTHROPIC_API_KEY` | Solo asistente de stock | Clave de la API de Claude |
+| `OPENAI_API_KEY` | Solo escaneo de comprobantes | Clave de la API de OpenAI |
+| `AI_MODEL` | No | Si es de Claude: asistente de stock (por defecto `claude-haiku-5-5`). Si es de OpenAI: escaneo |
+| `OPENAI_MODEL` | Ver nota | Modelo de OpenAI para el escaneo; necesario si `AI_MODEL` es de Claude |
+
+Para el escaneo, además: activa *Agente de IA* en la cuenta y agrega en SuperAdmin → *Modelos de IA* el precio del modelo de OpenAI, escrito exactamente igual que en la variable. El modelo debe aceptar imágenes, PDF y salida estructurada.
 | `DATA_ENCRYPTION_KEY` | Solo SUNAT | `openssl rand -base64 32`. Si se pierde, hay que volver a cargar certificados |
 
 `DIRECT_URL` no hace falta en Vercel: las migraciones se ejecutan aparte.
@@ -60,6 +64,7 @@ Nunca edites una migración ya aplicada: crea otra. Si una migración futura mod
 - [ ] Abrir la app, activar el modo avión, recargar, hacer una venta y comprobar que se sincroniza al reconectar.
 - [ ] Escanear con la cámara (requiere HTTPS) en Android e iPhone.
 - [ ] Imprimir un ticket en la impresora térmica y una hoja de etiquetas; ajustar márgenes en el diálogo de impresión.
+- [ ] Si activas el escaneo: probar con una foto y un PDF reales, comparar el borrador con el comprobante y revisar el consumo.
 - [ ] Si activas el agente: hacer una consulta real y revisar el consumo en SuperAdmin. Confirmar los precios en *Modelos de IA*.
 
 ## 8. Pruebas automáticas

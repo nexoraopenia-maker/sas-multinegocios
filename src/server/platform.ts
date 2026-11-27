@@ -69,7 +69,7 @@ export async function setAccountStatus(actor: AuthInfo, tenantId: string, status
 const BACKUP_MODELS = [
   'tenantSettings', 'counter', 'branch', 'userBranch', 'category', 'product', 'variant', 'priceHistory', 'lot', 'stockMovement', 'stockBalance',
   'customer', 'device', 'syncOperation', 'cashSession', 'cashMovement', 'sale', 'saleItem', 'payment', 'saleReturn', 'voucher', 'transfer',
-  'transferItem', 'adjustment', 'purchaseDocument', 'supervisorNotice', 'electronicDocument',
+  'transferItem', 'adjustment', 'purchaseDocument', 'purchaseScan', 'supervisorNotice', 'electronicDocument',
 ] as const;
 
 /** Respaldo completo del negocio (sin contraseñas ni secretos de SUNAT), comprimido y guardado en la plataforma. */
@@ -87,6 +87,8 @@ export async function createBackup(actor: AuthInfo, tenantId: string) {
     out.aiUsage = await tx.aiUsage.findMany({ where: { tenantId } });
     return out;
   }, { timeout: 120_000 });
+  // Los archivos adjuntos se guardan en base64.
+  tables.purchaseScan = (tables.purchaseScan as { data: Uint8Array }[]).map((r) => ({ ...r, data: Buffer.from(r.data).toString('base64') }));
   const json = JSON.stringify({ version: 1, createdAt: new Date().toISOString(), tenant, users, tables }, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
   return withPlatform(async (tx) => {
     const backup = await tx.tenantBackup.create({ data: { tenantId, createdBy: actor.userId, data: new Uint8Array(gzipSync(json)) } });

@@ -9,13 +9,19 @@ import type { Handler } from './types';
 export const stockIn: Handler<'stock.in'> = async (tx, ctx, p, meta) => {
   needBranch(ctx, p.branchId);
   await lock(tx, `branch:${ctx.tenantId}:${p.branchId}`);
+  const scan = p.scanId
+    ? await tx.purchaseScan.findFirst({ where: { tenantId: ctx.tenantId, id: p.scanId }, select: { id: true, status: true } })
+    : null;
+  if (p.scanId && !scan) throw notFound('Comprobante escaneado');
+  if (scan && scan.status !== 'DRAFT') throw conflict('Ese archivo ya se registró en un ingreso');
+  let purchaseDocumentId: string | null = null;
   if (p.document) {
     const { supplierRuc, docType, series, number } = p.document;
     if (await tx.purchaseDocument.findFirst({ where: { tenantId: ctx.tenantId, supplierRuc, docType, series, number } })) {
       throw conflict(`El comprobante ${series}-${number} del proveedor ${supplierRuc} ya fue ingresado`);
     }
     try {
-      await tx.purchaseDocument.create({ data: { ...p.document, tenantId: ctx.tenantId, branchId: p.branchId, userId: ctx.userId } });
+      purchaseDocumentId = (await tx.purchaseDocument.create({ data: { ...p.document, tenantId: ctx.tenantId, branchId: p.branchId, userId: ctx.userId } })).id;
     } catch (e) {
       if (isUniqueViolation(e)) throw conflict('Ese comprobante ya fue ingresado');
       throw e;
@@ -56,6 +62,14 @@ export const stockIn: Handler<'stock.in'> = async (tx, ctx, p, meta) => {
     });
   }
   await addMovements(tx, ctx, movements);
+  if (scan) {
+    // La condición sobre el estado impide que dos confirmaciones simultáneas usen el mismo respaldo.
+    const marked = await tx.purchaseScan.updateMany({
+      where: { tenantId: ctx.tenantId, id: scan.id, status: 'DRAFT' },
+      data: { status: 'CONFIRMED', branchId: p.branchId, operationId: meta.opId, purchaseDocumentId, confirmedAt: new Date() },
+    });
+    if (marked.count !== 1) throw conflict('Ese archivo ya se registró en un ingreso');
+  }
   return { lines: movements.length };
 };
 

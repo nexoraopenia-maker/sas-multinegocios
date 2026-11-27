@@ -1,8 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/client/api';
 import { useStore } from '@/client/store';
-import { Empty, Field, Notice, Page, useAction, useLoad, when } from '@/client/ui/kit';
+import { Empty, Field, Notice, Page, useAction, useLoad, useQueryParam, when } from '@/client/ui/kit';
 import { money } from '@/shared/money';
 import { PAYMENT_LABELS } from '@/shared/operations';
 
@@ -10,6 +10,7 @@ type Session = {
   id: string; user: string; openedAt: string; closedAt: string | null; openingAmount: number;
   expected: Record<string, number> | null; counted: Record<string, number> | null; difference: number | null; notes: string; reviewedBy: string | null;
 };
+const QUICK_AMOUNTS = [0, 50, 100, 200, 500];
 const METHODS = ['CASH', 'YAPE', 'PLIN', 'CARD', 'TRANSFER'] as const;
 const n = (v: string | undefined) => Number((v ?? '').replace(',', '.')) || 0;
 
@@ -17,6 +18,9 @@ export default function Cash() {
   const { view, branchId, submit, can, lastSync, outbox } = useStore();
   const s = view!;
   const [opening, setOpening] = useState('');
+  const openParam = useQueryParam('abrir');
+  const openingRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (openParam) openingRef.current?.focus(); }, [openParam]);
   const [move, setMove] = useState({ type: 'OUT' as 'IN' | 'OUT', amount: '', reason: '' });
   const [counted, setCounted] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState('');
@@ -33,7 +37,10 @@ export default function Cash() {
           setOpening(''); return queued(r.state, 'Caja abierta');
         }); }}>
           <h2>Abrir caja</h2>
-          <Field label="Monto inicial en efectivo"><input inputMode="decimal" required value={opening} onChange={(e) => setOpening(e.target.value)} /></Field>
+          <Field label="Monto inicial en efectivo"><input ref={openingRef} inputMode="decimal" required value={opening} onChange={(e) => setOpening(e.target.value)} /></Field>
+          <div className="row" role="group" aria-label="Montos rápidos">
+            {QUICK_AMOUNTS.map((a) => <button key={a} type="button" className="btn" aria-pressed={opening !== '' && n(opening) === a} onClick={() => setOpening(String(a))}>S/ {a}</button>)}
+          </div>
           <button className="btn primary big" disabled={busy}>Abrir caja</button>
         </form>
       ) : (

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '@/client/api';
 import { useStore } from '@/client/store';
 import { Field, Modal, Notice, Page, useAction, useLoad } from '@/client/ui/kit';
@@ -15,13 +15,22 @@ const GRANT_LABELS: Partial<Record<Permission, string>> = {
 export default function Config() {
   const { can, user } = useStore();
   const [tab, setTab] = useState('business');
+  const [newBranch, setNewBranch] = useState(false);
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    if (q.get('tab') !== 'branches') return;
+    setTab('branches');
+    setNewBranch(q.get('nueva') === '1');
+    // Se limpia la dirección para que al recargar no se vuelva a abrir el formulario.
+    history.replaceState(null, '', location.pathname);
+  }, []);
   if (!can('settings.manage')) return <Page title="Configuración"><p className="empty">Solo el administrador puede ver esta sección.</p></Page>;
   const tabs = [['business', 'Negocio'], ['branches', 'Sucursales'], ['users', 'Usuarios'], ...(user.features.sunat ? [['sunat', 'SUNAT']] : [])];
   return (
     <Page title="Configuración" actions={<a className="btn" href="/cambiar-clave">Cambiar mi contraseña</a>}>
       <div className="tabs">{tabs.map(([k, v]) => <button key={k} className="btn" aria-pressed={tab === k} onClick={() => setTab(k)}>{v}</button>)}</div>
       {tab === 'business' && <Business />}
-      {tab === 'branches' && <Branches />}
+      {tab === 'branches' && <Branches openNew={newBranch} />}
       {tab === 'users' && <Users />}
       {tab === 'sunat' && <Sunat />}
     </Page>
@@ -68,15 +77,18 @@ function BusinessForm({ initial }: { initial: SettingsDto }) {
   );
 }
 
-function Branches() {
+const emptyBranch = (): Branch => ({ code: '', name: '', address: '', active: true });
+
+function Branches({ openNew }: { openNew: boolean }) {
   const { user, sync } = useStore();
   const { data, error, reload } = useLoad(() => api<Branch[]>('branches'), []);
   const [edit, setEdit] = useState<Branch | null>(null);
+  useEffect(() => { if (openNew) setEdit(emptyBranch()); }, [openNew]);
   const { busy, message, run } = useAction();
   const limit = user.features.multiBranch ? user.features.maxBranches : 1;
   return (
     <div className="stack">
-      <div className="row between"><p className="muted">Sucursales activas permitidas: {limit}</p><button className="btn primary" onClick={() => setEdit({ code: '', name: '', address: '', active: true })}>+ Sucursal</button></div>
+      <div className="row between"><p className="muted">Sucursales activas permitidas: {limit}</p><button className="btn primary" onClick={() => setEdit(emptyBranch())}>+ Sucursal</button></div>
       {error && <p className="msg info">{error}</p>}
       {data?.map((b) => <div key={b.id} className="card row between"><span><b>{b.name}</b> <span className="tag">{b.code}</span>{!b.active && <span className="tag danger">Inactiva</span>}<small>{b.address}</small></span><button className="btn" onClick={() => setEdit(b)}>Editar</button></div>)}
       {edit && (

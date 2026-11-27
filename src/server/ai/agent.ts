@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { DEFAULT_AI_MODEL } from '@/shared/ai';
+import { stockAgentModel } from '@/shared/ai';
 import { todayISO } from '@/shared/stock';
 import { need, needFeature, type Ctx } from '../context';
 import { withTenant } from '../db';
@@ -44,7 +44,7 @@ Si la pregunta no trata sobre el inventario de este negocio, dilo amablemente.`;
 export async function askAgent(ctx: Ctx, question: string, injected?: ModelClient) {
   need(ctx, 'agent.use');
   needFeature(ctx, 'aiAgent');
-  const model = process.env.AI_MODEL || DEFAULT_AI_MODEL;
+  const model = stockAgentModel(process.env);
   const { prices, business } = await withTenant(ctx.tenantId, async (tx) => ({
     prices: new Map((await tx.aiModelPrice.findMany()).map((p) => [p.model, { inputPerMTok: Number(p.inputPerMTok), outputPerMTok: Number(p.outputPerMTok) }])),
     business: (await tx.tenant.findUniqueOrThrow({ where: { id: ctx.tenantId } })).name,
